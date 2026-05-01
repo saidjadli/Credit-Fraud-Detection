@@ -1,6 +1,5 @@
 CREATE TABLE IF NOT EXISTS users (
     user_id VARCHAR(100) PRIMARY KEY,
-    full_name VARCHAR(150),
     usual_country VARCHAR(100),
     risk_level VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -9,7 +8,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS merchants (
     merchant_id VARCHAR(100) PRIMARY KEY,
     merchant_name VARCHAR(150),
-    category VARCHAR(100),
+    merchant_category VARCHAR(100),
     risk_level VARCHAR(50),
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
@@ -25,9 +24,10 @@ CREATE TABLE IF NOT EXISTS transactions (
     payment_method VARCHAR(50),
     device_id VARCHAR(100),
     ip_address VARCHAR(100),
+    transaction_timestamp TIMESTAMP,
     transaction_status VARCHAR(50),
     risk_score INTEGER,
-    created_at TIMESTAMP
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE IF NOT EXISTS risk_scores (
@@ -55,22 +55,31 @@ CREATE TABLE IF NOT EXISTS fraud_alerts (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS daily_reports (
+    report_id SERIAL PRIMARY KEY,
+    report_date DATE,
+    total_transactions INTEGER,
+    total_normal INTEGER,
+    total_suspicious INTEGER,
+    total_fraud INTEGER,
+    total_fraud_amount DECIMAL(12, 2),
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
 
+CREATE INDEX IF NOT EXISTS idx_transactions_user_id 
+ON transactions(user_id);
 
-INSERT INTO users (user_id, full_name, usual_country, risk_level)
-VALUES
-('U001', 'User One', 'Morocco', 'LOW'),
-('U002', 'User Two', 'France', 'LOW'),
-('U003', 'User Three', 'Spain', 'MEDIUM'),
-('U004', 'User Four', 'Germany', 'LOW'),
-('U005', 'User Five', 'Morocco', 'MEDIUM')
-ON CONFLICT (user_id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_transactions_status 
+ON transactions(transaction_status);
 
-INSERT INTO merchants (merchant_id, merchant_name, category, risk_level)
-VALUES
-('M001', 'Local Grocery Store', 'Grocery', 'LOW'),
-('M002', 'Online Shop', 'Online Shopping', 'LOW'),
-('M003', 'Crypto Exchange', 'Crypto', 'HIGH'),
-('M004', 'Luxury Market', 'Luxury', 'HIGH'),
-('M005', 'Gaming Platform', 'Gaming', 'MEDIUM')
-ON CONFLICT (merchant_id) DO NOTHING;
+CREATE INDEX IF NOT EXISTS idx_transactions_risk_score 
+ON transactions(risk_score);
+
+CREATE INDEX IF NOT EXISTS idx_transactions_processed_at 
+ON transactions(processed_at);
+
+CREATE INDEX IF NOT EXISTS idx_fraud_alerts_status 
+ON fraud_alerts(status);
+
+CREATE INDEX IF NOT EXISTS idx_fraud_alerts_created_at 
+ON fraud_alerts(created_at);
