@@ -169,7 +169,9 @@ def main():
         cleaned_df
         .withColumn(
             "amount_score",
-            when(col("amount") > 5000, 30).otherwise(0)
+            when(col("amount") > 10000, 40)
+            .when(col("amount") > 5000, 30)
+            .otherwise(0)
         )
         .withColumn(
             "country_score",
@@ -191,7 +193,7 @@ def main():
         )
         .withColumn(
             "device_score",
-            lit(0)
+            when(col("device_id").rlike("D-8|D-9"), 15).otherwise(0)
         )
         .withColumn(
             "frequency_score",

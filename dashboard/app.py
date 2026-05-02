@@ -82,7 +82,7 @@ def main():
     col2.metric("Transactions normales", int(normal_count["total_normal"].iloc[0]))
     col3.metric("Transactions suspectes", int(suspicious_count["total_suspicious"].iloc[0]))
     col4.metric("Fraudes détectées", int(fraud_count["total_fraud"].iloc[0]))
-    col5.metric("Montant frauduleux", f"{float(fraud_amount['total_fraud_amount'].iloc[0]):,.2f} EUR")
+    col5.metric("Montant frauduleux", f"{float(fraud_amount['total_fraud_amount'].iloc[0]):,.0f} $")
 
     st.divider()
 
