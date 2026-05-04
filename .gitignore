@@ -8,7 +8,11 @@ fraud_streaming
 *.csv
 
 logs
+*.log
 
-fraud_rf_pipeline
+ml/models/fraud_rf_pipeline/
 
 .env
+
+__pycache__/
+*.pyc
