@@ -1,37 +1,35 @@
 ﻿# Real-Time Credit Fraud Detection Platform
 
-Plateforme Big Data de detection de fraude bancaire en temps reel. Le projet combine Kafka, Spark Structured Streaming, PostgreSQL, Airflow, Streamlit et un modele Machine Learning afin de detecter, scorer, stocker, visualiser et auditer des transactions suspectes.
+Big Data platform for real-time banking fraud detection. This project combines Kafka, Spark Structured Streaming, PostgreSQL, Airflow, Streamlit, and a Machine Learning model to detect, score, store, visualize, and audit suspicious transactions.
 
-## Presentation du projet
+## Project Overview
 
-Ce projet simule une chaine complete de detection de fraude sur des transactions de carte bancaire.
+This project simulates a complete fraud detection pipeline for credit card transactions.
 
-L'objectif est de traiter un flux de transactions en temps reel, de calculer un score de risque hybride, puis de classer chaque transaction en trois statuts :
+The objective is to process a real-time transaction stream, calculate a hybrid risk score, and classify each transaction into three statuses:
 
-- `NORMAL` : transaction consideree comme saine.
-- `SUSPICIOUS` : transaction a surveiller ou a analyser.
-- `FRAUD` : transaction fortement suspecte, avec generation d'alerte.
+- `NORMAL`: transaction considered legitimate.
+- `SUSPICIOUS`: transaction that should be monitored or reviewed.
+- `FRAUD`: highly suspicious transaction with alert generation.
 
-La plateforme couvre le cycle complet :
+The platform covers the full lifecycle:
 
-- ingestion des transactions via Kafka ;
-- traitement streaming avec Apache Spark ;
-- scoring par regles, comportement utilisateur et modele ML ;
-- stockage dans PostgreSQL ;
-- visualisation temps reel avec Streamlit ;
-- reporting, qualite de donnees et evaluation via Airflow.
-
-
+- transaction ingestion through Kafka;
+- streaming processing with Apache Spark;
+- scoring using business rules, user behavior, and an ML model;
+- storage in PostgreSQL;
+- real-time visualization with Streamlit;
+- reporting, data quality checks, and model evaluation with Airflow.
 
 ## Architecture
 
-Le flux global est le suivant :
+The global flow is as follows:
 
 ```text
-Dataset / Simulateur
+Dataset / Simulator
         |
         v
-Producer Python
+Python Producer
         |
         v
 Kafka topic: transactions_raw
@@ -52,11 +50,11 @@ PostgreSQL
         +--> CSV reports
 ```
 
-Schema visuel :
+Visual schema:
 
 ![Architecture](docs/architecture.png)
 
-Services principaux exposes en local :
+Main local services:
 
 | Service | URL |
 |---|---|
@@ -67,24 +65,24 @@ Services principaux exposes en local :
 | Airflow | http://localhost:8088 |
 | Streamlit Dashboard | http://localhost:8501 |
 
-## Technologies utilisees
+## Technologies Used
 
-| Technologie | Role |
+| Technology | Role |
 |---|---|
-| Docker Compose | Orchestration locale des services |
-| Apache Kafka | Bus de messages temps reel |
-| Zookeeper | Coordination Kafka |
-| Apache Spark 3.5.1 | Traitement streaming et entrainement ML |
-| Spark MLlib | Modele Random Forest |
-| PostgreSQL 16 | Stockage des transactions, scores et alertes |
-| PgAdmin | Administration PostgreSQL |
-| Apache Airflow 2.9.3 | Orchestration des rapports et controles |
-| Streamlit | Dashboard analytique temps reel |
-| Plotly | Visualisations interactives |
-| Python | Producers, dashboard, DAGs, scripts ML |
-| pandas / psycopg2 | Reporting, requetes SQL et exports CSV |
+| Docker Compose | Local service orchestration |
+| Apache Kafka | Real-time message broker |
+| Zookeeper | Kafka coordination |
+| Apache Spark 3.5.1 | Streaming processing and ML training |
+| Spark MLlib | Random Forest model |
+| PostgreSQL 16 | Storage for transactions, scores, and alerts |
+| PgAdmin | PostgreSQL administration |
+| Apache Airflow 2.9.3 | Report and data quality orchestration |
+| Streamlit | Real-time analytical dashboard |
+| Plotly | Interactive visualizations |
+| Python | Producers, dashboard, DAGs, and ML scripts |
+| pandas / psycopg2 | Reporting, SQL queries, and CSV exports |
 
-## Structure du projet
+## Project Structure
 
 ```text
 credit-fraud-detection/
@@ -144,28 +142,28 @@ credit-fraud-detection/
 
 ## Installation
 
-### Prerequis
+### Prerequisites
 
-- Docker Desktop ou Docker Engine avec Docker Compose.
-- Python 3.10+ pour lancer le producer et le dashboard en local.
+- Docker Desktop or Docker Engine with Docker Compose.
+- Python 3.10+ to run the producer and dashboard locally.
 - Git.
-- Dataset `creditcard.csv` place dans `data/raw/creditcard.csv`.
+- The `creditcard.csv` dataset placed in `data/raw/creditcard.csv`.
 
-### Demarrage de l'environnement
+### Starting the Environment
 
-Construire et lancer les services :
+Build and start the services:
 
 ```bash
 docker compose up -d --build
 ```
 
-Verifier les conteneurs :
+Check the containers:
 
 ```bash
 docker compose ps
 ```
 
-Creer le topic Kafka si necessaire :
+Create the Kafka topic if needed:
 
 ```bash
 docker exec -it fraud-kafka kafka-topics \
@@ -177,18 +175,18 @@ docker exec -it fraud-kafka kafka-topics \
   --replication-factor 1
 ```
 
-Installer les dependances Python locales :
+Install local Python dependencies:
 
 ```bash
 pip install -r producer/requirements.txt
 pip install -r dashboard/requirements.txt
 ```
 
-## Lancement
+## Running the Project
 
-### 1. Entrainer le modele ML
+### 1. Train the ML Model
 
-Le modele Random Forest est entraine avec Spark sur le dataset `creditcard.csv`.
+The Random Forest model is trained with Spark using the `creditcard.csv` dataset.
 
 ```bash
 docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
@@ -196,19 +194,19 @@ docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
   /opt/spark/ml/train_model.py
 ```
 
-Le modele est sauvegarde dans :
+The model is saved in:
 
 ```text
 ml/models/fraud_rf_pipeline
 ```
 
-Les metriques sont sauvegardees dans :
+The metrics are saved in:
 
 ```text
 ml/models/metrics.json
 ```
 
-### 2. Lancer le job Spark Streaming
+### 2. Run the Spark Streaming Job
 
 ```bash
 docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
@@ -217,137 +215,137 @@ docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
   /opt/spark/fraud_app/jobs/fraud_streaming_job.py
 ```
 
-### 3. Lancer le producer Kafka
+### 3. Run the Kafka Producer
 
-Mode recommande pour la demo, avec labels reels du dataset :
+Recommended mode for the demo, using real dataset labels:
 
 ```bash
 python producer/dataset_replay_producer.py
 ```
 
-Mode simulation simple :
+Simple simulation mode:
 
 ```bash
 python producer/transaction_producer.py
 ```
 
-### 4. Lancer le dashboard
+### 4. Run the Dashboard
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-Puis ouvrir :
+Then open:
 
 ```text
 http://localhost:8501
 ```
 
-### 5. Utiliser Airflow
+### 5. Use Airflow
 
-Airflow est disponible sur :
+Airflow is available at:
 
 ```text
 http://localhost:8088
 ```
 
-Identifiants par defaut :
+Default credentials:
 
 ```text
 username: admin
 password: admin
 ```
 
-## Fonctionnement du pipeline
+## Pipeline Workflow
 
-### 1. Generation ou replay des transactions
+### 1. Transaction Generation or Replay
 
-Deux producteurs sont disponibles :
+Two producers are available:
 
-- `producer/transaction_producer.py` genere des transactions synthetiques.
-- `producer/dataset_replay_producer.py` rejoue le dataset `creditcard.csv` en enrichissant les lignes avec des champs metier : utilisateur, pays, categorie marchand, moyen de paiement, device, IP et label reel.
+- `producer/transaction_producer.py` generates synthetic transactions.
+- `producer/dataset_replay_producer.py` replays the `creditcard.csv` dataset and enriches each row with business fields: user, country, merchant category, payment method, device, IP address, and real label.
 
-Le producer envoie les messages JSON dans le topic Kafka :
+The producer sends JSON messages to the Kafka topic:
 
 ```text
 transactions_raw
 ```
 
-### 2. Ingestion Kafka par Spark
+### 2. Kafka Ingestion by Spark
 
-Le job `spark/jobs/fraud_streaming_job.py` lit le topic Kafka en streaming, parse le JSON, nettoie les champs essentiels et transforme le timestamp en colonne exploitable.
+The job `spark/jobs/fraud_streaming_job.py` reads the Kafka topic in streaming mode, parses JSON messages, cleans the required fields, and transforms the timestamp into a usable column.
 
-Les transactions invalides ou incompletes sont filtrees :
+Invalid or incomplete transactions are filtered:
 
-- `transaction_id` obligatoire ;
-- `user_id` obligatoire ;
-- `amount` obligatoire ;
-- `event_time` obligatoire.
+- `transaction_id` is required;
+- `user_id` is required;
+- `amount` is required;
+- `event_time` is required.
 
-### 3. Scoring et decision
+### 3. Scoring and Decision
 
-Spark calcule ensuite :
+Spark then calculates:
 
-- un score par regles metier ;
-- un score comportemental ;
-- une probabilite ML ;
-- un score final hybride ;
-- un statut final : `NORMAL`, `SUSPICIOUS` ou `FRAUD`.
+- a business rule score;
+- a behavior score;
+- an ML probability;
+- a final hybrid score;
+- a final status: `NORMAL`, `SUSPICIOUS`, or `FRAUD`.
 
-### 4. Stockage PostgreSQL
+### 4. PostgreSQL Storage
 
-Les resultats sont ecrits dans trois tables :
+The results are written into three tables:
 
-- `transactions` : transactions enrichies et decision finale ;
-- `risk_scores` : details des composantes de scoring ;
-- `fraud_alerts` : alertes pour les transactions suspectes ou frauduleuses.
+- `transactions`: enriched transactions and final decision;
+- `risk_scores`: detailed scoring components;
+- `fraud_alerts`: alerts for suspicious or fraudulent transactions.
 
-## Explication du scoring hybride
+## Hybrid Scoring Explanation
 
-Le scoring hybride combine trois approches complementaires.
+The hybrid scoring engine combines three complementary approaches.
 
-### 1. Rule-based scoring
+### 1. Rule-Based Scoring
 
-Des regles metier attribuent des points selon des signaux de risque :
+Business rules assign points based on risk signals:
 
-| Signal | Regle | Score |
+| Signal | Rule | Score |
 |---|---:|---:|
-| Montant tres eleve | `amount > 10000` | 40 |
-| Montant eleve | `amount > 5000` | 30 |
-| Pays inhabituel | `country != usual_country` | 20 |
-| Categorie marchand risquee | Crypto, Luxury, Gaming, Gambling | 15 |
-| Horaire nocturne | entre 00h et 05h | 10 |
-| Device suspect | device contenant `D-8` ou `D-9` | 15 |
-| Frequence | reserve pour extension future | 0 |
+| Very high amount | `amount > 10000` | 40 |
+| High amount | `amount > 5000` | 30 |
+| Unusual country | `country != usual_country` | 20 |
+| Risky merchant category | Crypto, Luxury, Gaming, Gambling | 15 |
+| Night transaction | between 00:00 and 05:00 | 10 |
+| Suspicious device | device containing `D-8` or `D-9` | 15 |
+| Frequency | reserved for future extension | 0 |
 
-Ces signaux forment le `rule_score`.
+These signals form the `rule_score`.
 
-### 2. Behavior scoring
+### 2. Behavior Scoring
 
-Le score comportemental compare le montant de la transaction au montant moyen habituel de l'utilisateur :
+The behavior score compares the transaction amount with the user's usual average amount:
 
-| Ratio `amount_vs_avg_user` | Score |
+| `amount_vs_avg_user` Ratio | Score |
 |---:|---:|
 | `>= 10` | 30 |
 | `>= 5` | 20 |
 | `>= 3` | 10 |
 | `< 3` | 0 |
 
-Ce score permet de detecter une transaction anormale meme si elle ne suffit pas seule a declencher une alerte.
+This score helps detect unusual transactions even when they do not trigger a strong alert alone.
 
-### 3. ML probability
+### 3. ML Probability
 
-Le modele Spark ML utilise un `RandomForestClassifier` entraine sur les variables :
+The Spark ML model uses a `RandomForestClassifier` trained on the following variables:
 
 ```text
 Time, V1, V2, ..., V28, Amount
 ```
 
-Le modele produit `ml_probability`, c'est-a-dire la probabilite que la transaction soit frauduleuse.
+The model produces `ml_probability`, which represents the probability that a transaction is fraudulent.
 
-### 4. Score final
+### 4. Final Score
 
-Le score final combine les trois signaux :
+The final score combines the three signals:
 
 ```text
 final_score = 0.35 * rule_score
@@ -355,58 +353,58 @@ final_score = 0.35 * rule_score
             + 0.20 * behavior_score
 ```
 
-Avec :
+With:
 
 ```text
 ml_score = ml_probability * 100
 ```
 
-### 5. Decision finale
+### 5. Final Decision
 
-Une transaction est classee `FRAUD` si :
+A transaction is classified as `FRAUD` if:
 
 ```text
 final_score >= 60
 ```
 
-ou si :
+or if:
 
 ```text
-rule_score >= 50 et ml_probability >= 0.10
+rule_score >= 50 and ml_probability >= 0.10
 ```
 
-Une transaction est classee `SUSPICIOUS` si :
+A transaction is classified as `SUSPICIOUS` if:
 
 ```text
 final_score >= 35
 ```
 
-ou si :
+or if:
 
 ```text
 ml_probability >= 0.08
 ```
 
-ou si :
+or if:
 
 ```text
 rule_score >= 40
 ```
 
-Sinon, elle est classee `NORMAL`.
+Otherwise, it is classified as `NORMAL`.
 
 ## Airflow DAGs
 
-Les DAGs Airflow automatisent le reporting, la qualite et la maintenance.
+Airflow DAGs automate reporting, quality control, and maintenance.
 
-| DAG | Frequence | Role |
+| DAG | Frequency | Role |
 |---|---|---|
-| `daily_fraud_report_dag` | quotidienne | Genere les rapports globaux de fraude |
-| `data_quality_dag` | quotidienne | Verifie la coherence des donnees |
-| `model_evaluation_report_dag` | quotidienne | Calcule precision, recall, F1-score et accuracy |
-| `repair_missing_alerts_dag` | manuel | Repare les alertes manquantes |
+| `daily_fraud_report_dag` | Daily | Generates global fraud reports |
+| `data_quality_dag` | Daily | Checks data consistency |
+| `model_evaluation_report_dag` | Daily | Calculates precision, recall, F1-score, and accuracy |
+| `repair_missing_alerts_dag` | Manual | Repairs missing alerts |
 
-Ordre recommande pour une demonstration :
+Recommended order for a demonstration:
 
 ```text
 repair_missing_alerts_dag
@@ -415,13 +413,13 @@ daily_fraud_report_dag
 model_evaluation_report_dag
 ```
 
-Les rapports sont exportes dans :
+Reports are exported to:
 
 ```text
 data/reports/
 ```
 
-Exemples de fichiers generes :
+Examples of generated files:
 
 - `fraud_summary_*.csv`
 - `fraud_status_distribution_*.csv`
@@ -434,48 +432,48 @@ Exemples de fichiers generes :
 
 ## Dashboard
 
-Le dashboard Streamlit permet de suivre le pipeline en temps reel.
+The Streamlit dashboard monitors the pipeline in real time.
 
-Fonctionnalites principales :
+Main features:
 
-- KPIs : total transactions, normales, suspectes, fraudes, montant frauduleux ;
-- moyennes de `ml_probability`, `behavior_score` et `final_score` ;
-- repartition des statuts ;
-- top pays suspects ;
-- histogrammes de `final_score` et `ml_probability` ;
-- distribution du score comportemental ;
-- evaluation modele : precision, recall, F1-score, accuracy ;
-- matrice `actual_label` vs `transaction_status` ;
-- timeline des fraudes par minute ;
-- dernieres transactions traitees ;
-- dernieres alertes.
+- KPIs: total transactions, normal, suspicious, fraud, fraud amount;
+- averages for `ml_probability`, `behavior_score`, and `final_score`;
+- status distribution;
+- top suspicious countries;
+- `final_score` and `ml_probability` histograms;
+- behavior score distribution;
+- model evaluation: precision, recall, F1-score, accuracy;
+- `actual_label` vs `transaction_status` matrix;
+- fraud timeline per minute;
+- latest processed transactions;
+- latest alerts.
 
-Captures prevues :
+Planned screenshots:
 
 ![Dashboard overview](docs/screenshots/dashboard_overview.png)
 
 ![Model evaluation](docs/screenshots/model_evaluation.png)
 
-## Resultats attendus
+## Expected Results
 
-### Modele ML
+### ML Model
 
-Les metriques sauvegardees dans `ml/models/metrics.json` indiquent :
+The metrics saved in `ml/models/metrics.json` indicate:
 
-| Metrique | Valeur |
+| Metric | Value |
 |---|---:|
-| Type modele | Spark ML RandomForestClassifier |
-| Total lignes | 284807 |
-| Transactions normales | 284315 |
-| Fraudes | 492 |
+| Model type | Spark ML RandomForestClassifier |
+| Total rows | 284807 |
+| Normal transactions | 284315 |
+| Frauds | 492 |
 | AUC | 0.9687 |
 | F1 | 0.9993 |
 
-### Evaluation hybride observee
+### Observed Hybrid Evaluation
 
-Le rapport `data/reports/model_evaluation_metrics_2026-05-04_14-08-36.csv` contient :
+The report `data/reports/model_evaluation_metrics_2026-05-04_14-08-36.csv` contains:
 
-| Metrique | Valeur |
+| Metric | Value |
 |---|---:|
 | True positives | 168 |
 | False positives | 38 |
@@ -486,15 +484,14 @@ Le rapport `data/reports/model_evaluation_metrics_2026-05-04_14-08-36.csv` conti
 | F1-score | 0.8984 |
 | Accuracy | 0.9477 |
 
-Interpretation :
+Interpretation:
 
-- Le recall est excellent dans cette execution : aucune fraude labelisee n'a ete ratee.
-- La precision montre qu'il existe encore des faux positifs.
-- Ce comportement est coherent pour un systeme de fraude : il vaut souvent mieux analyser trop d'alertes que laisser passer une fraude.
+- Recall is excellent in this run: no labeled fraud was missed.
+- Precision shows that some false positives still exist.
+- This behavior is consistent with fraud detection systems: it is often better to review too many alerts than to let a fraud pass undetected.
 
+## Additional Documentation
 
-## Documentation complementaire
-
-- Scenario de demo : [docs/demo_scenario.md](docs/demo_scenario.md)
-- Captures d'ecran : `docs/screenshots/`
-- Rapports CSV : `data/reports/`
+- Demo scenario: [docs/demo_scenario.md](docs/demo_scenario.md)
+- Screenshots: `docs/screenshots/`
+- CSV reports: `data/reports/`

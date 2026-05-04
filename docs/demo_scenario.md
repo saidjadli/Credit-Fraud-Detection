@@ -1,33 +1,33 @@
-﻿# Scenario de demonstration
+﻿# Demo Scenario
 
-Ce scenario montre le fonctionnement complet de la plateforme de detection de fraude en temps reel.
+This scenario demonstrates the full workflow of the real-time fraud detection platform.
 
-## Objectif
+## Objective
 
-Demontrer qu'une transaction envoyee dans Kafka est traitee par Spark, scoree par le moteur hybride, stockee dans PostgreSQL, visible dans le dashboard et exploitable par Airflow.
+Demonstrate that a transaction sent to Kafka is processed by Spark, scored by the hybrid fraud detection engine, stored in PostgreSQL, displayed in the dashboard, and made available for Airflow reporting and auditing.
 
-## Prerequis
+## Prerequisites
 
-- Docker Compose lance.
-- Topic Kafka `transactions_raw` cree.
-- Modele ML entraine dans `ml/models/fraud_rf_pipeline`.
-- Dataset disponible dans `data/raw/creditcard.csv`.
-- Dependances Python installees pour `producer/` et `dashboard/`.
+- Docker Compose is running.
+- Kafka topic `transactions_raw` has been created.
+- The ML model has been trained and saved in `ml/models/fraud_rf_pipeline`.
+- The dataset is available at `data/raw/creditcard.csv`.
+- Python dependencies are installed for `producer/` and `dashboard/`.
 
-## Etape 1 - Lancer les services
+## Step 1 - Start the Services
 
 ```bash
 docker compose up -d --build
 ```
 
-Verifier les interfaces :
+Check the main interfaces:
 
-- Kafka UI : http://localhost:8085
-- Spark Master : http://localhost:18081
-- Airflow : http://localhost:8088
-- PgAdmin : http://localhost:5050
+- Kafka UI: http://localhost:8085
+- Spark Master: http://localhost:18081
+- Airflow: http://localhost:8088
+- PgAdmin: http://localhost:5050
 
-## Etape 2 - Creer le topic Kafka
+## Step 2 - Create the Kafka Topic
 
 ```bash
 docker exec -it fraud-kafka kafka-topics \
@@ -39,9 +39,9 @@ docker exec -it fraud-kafka kafka-topics \
   --replication-factor 1
 ```
 
-Dans Kafka UI, verifier que le topic `transactions_raw` existe.
+In Kafka UI, verify that the `transactions_raw` topic exists.
 
-## Etape 3 - Entrainer le modele
+## Step 3 - Train the ML Model
 
 ```bash
 docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
@@ -49,12 +49,12 @@ docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
   /opt/spark/ml/train_model.py
 ```
 
-Verifier que les fichiers suivants existent :
+Verify that the following files or folders exist:
 
 - `ml/models/fraud_rf_pipeline`
 - `ml/models/metrics.json`
 
-## Etape 4 - Lancer le streaming Spark
+## Step 4 - Start Spark Streaming
 
 ```bash
 docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
@@ -63,44 +63,44 @@ docker exec -it fraud-spark-master /opt/spark/bin/spark-submit \
   /opt/spark/fraud_app/jobs/fraud_streaming_job.py
 ```
 
-Dans Spark UI, verifier que l'application streaming est active.
+In the Spark UI, verify that the streaming application is active.
 
-## Etape 5 - Envoyer des transactions
+## Step 5 - Send Transactions
 
 ```bash
 python producer/dataset_replay_producer.py
 ```
 
-Le producer envoie des transactions normales et frauduleuses dans Kafka avec un ratio de fraude configurable via `FRAUD_REPLAY_RATIO`.
+The producer sends both normal and fraudulent transactions to Kafka. The fraud ratio can be configured using the `FRAUD_REPLAY_RATIO` environment variable.
 
-Dans Kafka UI, ouvrir le topic `transactions_raw` et verifier les messages JSON.
+In Kafka UI, open the `transactions_raw` topic and inspect the JSON messages.
 
-## Etape 6 - Visualiser dans le dashboard
+## Step 6 - Visualize the Pipeline in the Dashboard
 
 ```bash
 streamlit run dashboard/app.py
 ```
 
-Ouvrir :
+Open:
 
 ```text
 http://localhost:8501
 ```
 
-Points a montrer :
+Key points to show:
 
-- nombre total de transactions ;
-- transactions `NORMAL`, `SUSPICIOUS`, `FRAUD` ;
-- montant frauduleux total ;
-- histogramme `final_score` ;
-- histogramme `ml_probability` ;
-- section `Model Evaluation` ;
-- dernieres transactions ;
-- dernieres alertes.
+- total number of transactions;
+- `NORMAL`, `SUSPICIOUS`, and `FRAUD` transactions;
+- total fraudulent amount;
+- `final_score` histogram;
+- `ml_probability` histogram;
+- `Model Evaluation` section;
+- latest processed transactions;
+- latest fraud alerts.
 
-## Etape 7 - Verifier PostgreSQL
+## Step 7 - Verify PostgreSQL
 
-Dans PgAdmin ou via SQL, verifier les tables :
+Using PgAdmin or SQL, verify the main tables:
 
 ```sql
 SELECT COUNT(*) FROM transactions;
@@ -108,7 +108,7 @@ SELECT COUNT(*) FROM risk_scores;
 SELECT COUNT(*) FROM fraud_alerts;
 ```
 
-Verifier les dernieres transactions :
+Check the latest transactions:
 
 ```sql
 SELECT
@@ -126,9 +126,9 @@ ORDER BY processed_at DESC
 LIMIT 20;
 ```
 
-## Etape 8 - Executer les DAGs Airflow
+## Step 8 - Run the Airflow DAGs
 
-Dans Airflow, lancer dans cet ordre :
+In Airflow, trigger the DAGs in the following order:
 
 ```text
 repair_missing_alerts_dag
@@ -137,13 +137,13 @@ daily_fraud_report_dag
 model_evaluation_report_dag
 ```
 
-Verifier les exports dans :
+Check the generated exports in:
 
 ```text
 data/reports/
 ```
 
-Fichiers attendus :
+Expected files:
 
 - `repair_missing_alerts_*.csv`
 - `data_quality_report_*.csv`
@@ -155,20 +155,20 @@ Fichiers attendus :
 - `model_evaluation_distribution_*.csv`
 - `model_top_predictions_*.csv`
 
-## Etape 9 - Message de conclusion
+## Step 9 - Demo Conclusion
 
-La demonstration montre une chaine complete :
+The demonstration shows a complete real-time fraud detection chain:
 
 ```text
 Producer -> Kafka -> Spark Streaming -> Hybrid Scoring -> PostgreSQL -> Dashboard + Airflow Reports
 ```
 
-Points forts a souligner :
+Main strengths to highlight:
 
-- traitement temps reel ;
-- scoring hybride explicable ;
-- integration ML ;
-- stockage structure ;
-- dashboard interactif ;
-- orchestration Airflow ;
-- exports CSV pour audit et reporting.
+- real-time processing;
+- explainable hybrid scoring;
+- Machine Learning integration;
+- structured PostgreSQL storage;
+- interactive dashboard;
+- Airflow orchestration;
+- CSV exports for audit and reporting.
