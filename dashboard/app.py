@@ -34,6 +34,12 @@ def load_data(query):
     return df
 
 
+def safe_divide(numerator, denominator):
+    if denominator == 0:
+        return 0.0
+    return numerator / denominator
+
+
 def main():
     st.title("Real-Time Fraud Detection Dashboard")
     st.caption(
@@ -97,9 +103,9 @@ def main():
 
     col6, col7, col8 = st.columns(3)
 
-    col6.metric("ML probability moyenne", f"{avg_ml_probability:.4f}")
-    col7.metric("Behavior score moyen", f"{avg_behavior_score:.2f}")
-    col8.metric("Final score moyen", f"{avg_final_score:.2f}")
+    col6.metric("Risque ML moyen", f"{avg_ml_probability:.4f}")
+    col7.metric("Score comportemental moyen", f"{avg_behavior_score:.2f}")
+    col8.metric("Score hybride moyen", f"{avg_final_score:.2f}")
 
     st.divider()
 
@@ -240,6 +246,109 @@ def main():
 
     st.divider()
 
+    st.subheader("Model Evaluation")
+
+    st.caption(
+        "Cette section utilise actual_label uniquement pour évaluer le modèle avec le dataset. "
+        "Dans un vrai système bancaire, ce label réel n'est pas connu au moment de la transaction."
+    )
+
+    evaluation_df = load_data("""
+        SELECT
+            SUM(CASE WHEN actual_label = 1 AND transaction_status IN ('SUSPICIOUS', 'FRAUD') THEN 1 ELSE 0 END) AS true_positives,
+            SUM(CASE WHEN actual_label = 0 AND transaction_status IN ('SUSPICIOUS', 'FRAUD') THEN 1 ELSE 0 END) AS false_positives,
+            SUM(CASE WHEN actual_label = 0 AND transaction_status = 'NORMAL' THEN 1 ELSE 0 END) AS true_negatives,
+            SUM(CASE WHEN actual_label = 1 AND transaction_status = 'NORMAL' THEN 1 ELSE 0 END) AS false_negatives
+        FROM transactions
+        WHERE actual_label IS NOT NULL;
+    """)
+
+    if not evaluation_df.empty:
+        tp = int(evaluation_df["true_positives"].fillna(0).iloc[0])
+        fp = int(evaluation_df["false_positives"].fillna(0).iloc[0])
+        tn = int(evaluation_df["true_negatives"].fillna(0).iloc[0])
+        fn = int(evaluation_df["false_negatives"].fillna(0).iloc[0])
+
+        precision = safe_divide(tp, tp + fp)
+        recall = safe_divide(tp, tp + fn)
+        f1_score = safe_divide(2 * precision * recall, precision + recall)
+        accuracy = safe_divide(tp + tn, tp + fp + tn + fn)
+
+        eval_col1, eval_col2, eval_col3, eval_col4 = st.columns(4)
+
+        eval_col1.metric("Precision", f"{precision * 100:.2f}%")
+        eval_col2.metric("Recall", f"{recall * 100:.2f}%")
+        eval_col3.metric("F1-score", f"{f1_score * 100:.2f}%")
+        eval_col4.metric("Accuracy", f"{accuracy * 100:.2f}%")
+
+        cm_col1, cm_col2, cm_col3, cm_col4 = st.columns(4)
+
+        cm_col1.metric("True Positives", tp)
+        cm_col2.metric("False Positives", fp)
+        cm_col3.metric("True Negatives", tn)
+        cm_col4.metric("False Negatives", fn)
+
+        st.markdown(
+            """
+            **Interprétation rapide :**
+            - **Precision** : parmi les transactions signalées, combien sont réellement frauduleuses.
+            - **Recall** : parmi les vraies fraudes, combien le système détecte.
+            - **F1-score** : équilibre entre precision et recall.
+            - **False Negatives** : fraudes ratées. C'est la métrique la plus critique.
+            """
+        )
+
+        matrix_df = load_data("""
+            SELECT
+                actual_label,
+                transaction_status,
+                COUNT(*) AS total
+            FROM transactions
+            WHERE actual_label IS NOT NULL
+            GROUP BY actual_label, transaction_status
+            ORDER BY actual_label, transaction_status;
+        """)
+
+        if not matrix_df.empty:
+            matrix_col1, matrix_col2 = st.columns(2)
+
+            with matrix_col1:
+                st.markdown("#### Matrice actual_label vs transaction_status")
+                st.dataframe(matrix_df, use_container_width=True)
+
+            with matrix_col2:
+                fig_matrix = px.bar(
+                    matrix_df,
+                    x="transaction_status",
+                    y="total",
+                    color="actual_label",
+                    barmode="group",
+                    title="Décision du système par label réel"
+                )
+                st.plotly_chart(fig_matrix, use_container_width=True)
+
+        performance_by_label_df = load_data("""
+            SELECT
+                actual_label,
+                COUNT(*) AS total,
+                COALESCE(AVG(ml_probability), 0) AS avg_ml_probability,
+                COALESCE(AVG(final_score), 0) AS avg_final_score,
+                COALESCE(MAX(final_score), 0) AS max_final_score
+            FROM transactions
+            WHERE actual_label IS NOT NULL
+            GROUP BY actual_label
+            ORDER BY actual_label;
+        """)
+
+        if not performance_by_label_df.empty:
+            st.markdown("#### Analyse des scores par label réel")
+            st.dataframe(performance_by_label_df, use_container_width=True)
+
+    else:
+        st.info("Aucune donnée avec actual_label disponible pour évaluer le modèle.")
+
+    st.divider()
+
     st.subheader("Fraudes par minute")
 
     timeline_df = load_data("""
@@ -282,6 +391,7 @@ def main():
             behavior_score,
             final_score,
             transaction_status,
+            actual_label,
             detection_method,
             transaction_timestamp,
             processed_at

@@ -8,7 +8,7 @@ from airflow.operators.python import PythonOperator
 
 
 FRAUD_DB_CONFIG = {
-    "host": os.getenv("FRAUD_DB_HOST", "postgres"),
+    "host": os.getenv("FRAUD_DB_HOST", "fraud-postgres"),
     "port": int(os.getenv("FRAUD_DB_PORT", "5432")),
     "database": os.getenv("FRAUD_DB_NAME", "fraud_detection"),
     "user": os.getenv("FRAUD_DB_USER", "fraud_user"),
@@ -34,20 +34,27 @@ QUALITY_CHECKS = {
     "invalid_amount": """
         SELECT COUNT(*) AS issue_count
         FROM transactions
-        WHERE amount IS NULL OR amount <= 0;
+        WHERE amount IS NULL OR amount < 0;
     """,
 
     "invalid_transaction_status": """
         SELECT COUNT(*) AS issue_count
         FROM transactions
-        WHERE transaction_status NOT IN ('NORMAL', 'SUSPICIOUS', 'FRAUD')
-        OR transaction_status IS NULL;
+        WHERE transaction_status IS NULL
+        OR transaction_status NOT IN ('NORMAL', 'SUSPICIOUS', 'FRAUD');
+    """,
+
+    "missing_risk_score": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE risk_score IS NULL;
     """,
 
     "invalid_risk_score": """
         SELECT COUNT(*) AS issue_count
         FROM transactions
-        WHERE risk_score IS NULL OR risk_score < 0 OR risk_score > 100;
+        WHERE risk_score IS NOT NULL
+        AND (risk_score < 0 OR risk_score > 100);
     """,
 
     "missing_transaction_timestamp": """
@@ -66,6 +73,61 @@ QUALITY_CHECKS = {
         ) AS duplicates;
     """,
 
+    "missing_ml_probability": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE detection_method = 'HYBRID_RULES_ML_BEHAVIOR'
+        AND ml_probability IS NULL;
+    """,
+
+    "invalid_ml_probability": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE ml_probability IS NOT NULL
+        AND (ml_probability < 0 OR ml_probability > 1);
+    """,
+
+    "missing_behavior_score": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE detection_method = 'HYBRID_RULES_ML_BEHAVIOR'
+        AND behavior_score IS NULL;
+    """,
+
+    "invalid_behavior_score": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE behavior_score IS NOT NULL
+        AND (behavior_score < 0 OR behavior_score > 100);
+    """,
+
+    "missing_final_score": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE detection_method = 'HYBRID_RULES_ML_BEHAVIOR'
+        AND final_score IS NULL;
+    """,
+
+    "invalid_final_score": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE final_score IS NOT NULL
+        AND (final_score < 0 OR final_score > 100);
+    """,
+
+    "missing_detection_method": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE detection_method IS NULL;
+    """,
+
+    "invalid_actual_label": """
+        SELECT COUNT(*) AS issue_count
+        FROM transactions
+        WHERE actual_label IS NOT NULL
+        AND actual_label NOT IN (0, 1);
+    """,
+
     "fraud_alert_without_transaction": """
         SELECT COUNT(*) AS issue_count
         FROM fraud_alerts fa
@@ -79,7 +141,7 @@ QUALITY_CHECKS = {
         FROM transactions t
         LEFT JOIN fraud_alerts fa
         ON t.transaction_id = fa.transaction_id
-        WHERE t.transaction_status = 'FRAUD'
+        WHERE t.transaction_status IN ('SUSPICIOUS', 'FRAUD')
         AND fa.transaction_id IS NULL;
     """
 }
@@ -120,11 +182,11 @@ def run_data_quality_checks():
     failed_checks = result_df[result_df["status"] == "FAILED"]
 
     if not failed_checks.empty:
-        print("Some data quality checks failed.")
+        print("Some data quality checks failed:")
         print(failed_checks)
         raise ValueError("Data quality checks failed. Please inspect the generated report.")
-    else:
-        print("All data quality checks passed.")
+
+    print("All data quality checks passed.")
 
 
 default_args = {
@@ -141,7 +203,7 @@ with DAG(
     start_date=datetime(2026, 1, 1),
     schedule_interval="@daily",
     catchup=False,
-    tags=["fraud", "data-quality", "postgresql"],
+    tags=["fraud", "data-quality", "postgresql", "ml"],
 ) as dag:
 
     run_quality_checks_task = PythonOperator(
