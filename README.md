@@ -492,32 +492,6 @@ Interpretation :
 - La precision montre qu'il existe encore des faux positifs.
 - Ce comportement est coherent pour un systeme de fraude : il vaut souvent mieux analyser trop d'alertes que laisser passer une fraude.
 
-## Limites et ameliorations futures
-
-Limites actuelles :
-
-- le dashboard se connecte directement a PostgreSQL ;
-- les identifiants sont simples et adaptes a une demo locale ;
-- le score de frequence est reserve mais pas encore implemente ;
-- le modele n'est pas reentraine automatiquement par Airflow ;
-- les labels reels `actual_label` ne sont disponibles que dans le mode replay dataset ;
-- pas encore d'API backend dediee entre le dashboard et la base ;
-- pas de gestion avancee des roles analyste/admin ;
-- pas de monitoring production type Prometheus/Grafana ;
-- pas de schema registry Kafka.
-
-Ameliorations possibles :
-
-- ajouter une API backend securisee, par exemple Spring Boot ou FastAPI ;
-- ajouter une authentification dashboard ;
-- implementer le score de frequence par fenetre temporelle Spark ;
-- ajouter un DAG de reentrainement ML ;
-- versionner les modeles avec MLflow ;
-- ajouter des tests automatises de qualite data et pipeline ;
-- ajouter un schema registry pour valider les messages Kafka ;
-- exposer les metriques techniques avec Prometheus ;
-- ajouter une interface analyste pour fermer, commenter ou escalader les alertes ;
-- deployer la plateforme sur Kubernetes.
 
 ## Documentation complementaire
 
