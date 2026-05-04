@@ -52,7 +52,7 @@ PostgreSQL
 
 Schema visuel :
 
-![Architecture](docs/architecture.png)
+![Architecture](docs\architecture.png)
 
 Services principaux exposes en local :
 
