@@ -27,6 +27,11 @@ CREATE TABLE IF NOT EXISTS transactions (
     transaction_timestamp TIMESTAMP,
     transaction_status VARCHAR(50),
     risk_score INTEGER,
+    ml_probability DECIMAL(6, 4),
+    behavior_score INTEGER,
+    final_score INTEGER,
+    detection_method VARCHAR(50),
+    actual_label INTEGER,
     processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 

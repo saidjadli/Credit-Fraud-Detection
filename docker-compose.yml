@@ -69,7 +69,10 @@ services:
       - "5050:80"
 
   spark-master:
-    image: spark:3.5.1
+    build:
+      context: .
+      dockerfile: spark/Dockerfile
+    image: fraud-spark:3.5.1
     container_name: fraud-spark-master
     user: root
     depends_on:
@@ -80,6 +83,8 @@ services:
       - "18081:8080"
     volumes:
       - ./spark:/opt/spark/fraud_app
+      - ./ml:/opt/spark/ml
+      - ./data:/opt/spark/data
     command: >
       /opt/spark/bin/spark-class
       org.apache.spark.deploy.master.Master
@@ -87,7 +92,7 @@ services:
   
   
   spark-worker:
-    image: spark:3.5.1
+    image: fraud-spark:3.5.1
     container_name: fraud-spark-worker
     user: root
     depends_on:
@@ -96,6 +101,8 @@ services:
       - "18082:8081"
     volumes:
       - ./spark:/opt/spark/fraud_app
+      - ./ml:/opt/spark/ml
+      - ./data:/opt/spark/data
     command: >
       /opt/spark/bin/spark-class
       org.apache.spark.deploy.worker.Worker

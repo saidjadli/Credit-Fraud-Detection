@@ -35,8 +35,11 @@ def load_data(query):
 
 
 def main():
-    st.title("🚨 Real-Time Fraud Detection Dashboard")
-    st.caption("Monitoring des transactions bancaires, scores de risque et alertes de fraude en temps réel.")
+    st.title("Real-Time Fraud Detection Dashboard")
+    st.caption(
+        "Monitoring temps réel des transactions bancaires avec moteur hybride : "
+        "Rule-Based Scoring + ML Probability + Behavior Analysis."
+    )
 
     refresh_seconds = st.sidebar.slider(
         "Rafraîchissement automatique en secondes",
@@ -47,42 +50,56 @@ def main():
 
     auto_refresh = st.sidebar.checkbox("Activer auto-refresh", value=True)
 
-    transactions_count = load_data("""
-        SELECT COUNT(*) AS total_transactions
-        FROM transactions;
+    st.sidebar.divider()
+    st.sidebar.markdown("### Filtres")
+
+    selected_status = st.sidebar.multiselect(
+        "Statut transaction",
+        options=["NORMAL", "SUSPICIOUS", "FRAUD"],
+        default=["NORMAL", "SUSPICIOUS", "FRAUD"]
+    )
+
+    if not selected_status:
+        selected_status = ["NORMAL", "SUSPICIOUS", "FRAUD"]
+
+    status_filter = ",".join([f"'{status}'" for status in selected_status])
+
+    metrics_df = load_data(f"""
+        SELECT
+            COUNT(*) AS total_transactions,
+            COUNT(*) FILTER (WHERE transaction_status = 'NORMAL') AS total_normal,
+            COUNT(*) FILTER (WHERE transaction_status = 'SUSPICIOUS') AS total_suspicious,
+            COUNT(*) FILTER (WHERE transaction_status = 'FRAUD') AS total_fraud,
+            COALESCE(SUM(amount) FILTER (WHERE transaction_status = 'FRAUD'), 0) AS total_fraud_amount,
+            COALESCE(AVG(ml_probability), 0) AS avg_ml_probability,
+            COALESCE(AVG(behavior_score), 0) AS avg_behavior_score,
+            COALESCE(AVG(final_score), 0) AS avg_final_score
+        FROM transactions
+        WHERE transaction_status IN ({status_filter});
     """)
 
-    fraud_count = load_data("""
-        SELECT COUNT(*) AS total_fraud
-        FROM transactions
-        WHERE transaction_status = 'FRAUD';
-    """)
-
-    suspicious_count = load_data("""
-        SELECT COUNT(*) AS total_suspicious
-        FROM transactions
-        WHERE transaction_status = 'SUSPICIOUS';
-    """)
-
-    normal_count = load_data("""
-        SELECT COUNT(*) AS total_normal
-        FROM transactions
-        WHERE transaction_status = 'NORMAL';
-    """)
-
-    fraud_amount = load_data("""
-        SELECT COALESCE(SUM(amount), 0) AS total_fraud_amount
-        FROM transactions
-        WHERE transaction_status = 'FRAUD';
-    """)
+    total_transactions = int(metrics_df["total_transactions"].iloc[0])
+    total_normal = int(metrics_df["total_normal"].iloc[0])
+    total_suspicious = int(metrics_df["total_suspicious"].iloc[0])
+    total_fraud = int(metrics_df["total_fraud"].iloc[0])
+    total_fraud_amount = float(metrics_df["total_fraud_amount"].iloc[0])
+    avg_ml_probability = float(metrics_df["avg_ml_probability"].iloc[0])
+    avg_behavior_score = float(metrics_df["avg_behavior_score"].iloc[0])
+    avg_final_score = float(metrics_df["avg_final_score"].iloc[0])
 
     col1, col2, col3, col4, col5 = st.columns(5)
 
-    col1.metric("Total transactions", int(transactions_count["total_transactions"].iloc[0]))
-    col2.metric("Transactions normales", int(normal_count["total_normal"].iloc[0]))
-    col3.metric("Transactions suspectes", int(suspicious_count["total_suspicious"].iloc[0]))
-    col4.metric("Fraudes détectées", int(fraud_count["total_fraud"].iloc[0]))
-    col5.metric("Montant frauduleux", f"{float(fraud_amount['total_fraud_amount'].iloc[0]):,.0f} $")
+    col1.metric("Total transactions", total_transactions)
+    col2.metric("Normales", total_normal)
+    col3.metric("Suspectes", total_suspicious)
+    col4.metric("Fraudes", total_fraud)
+    col5.metric("Montant frauduleux", f"{total_fraud_amount:,.2f} $")
+
+    col6, col7, col8 = st.columns(3)
+
+    col6.metric("ML probability moyenne", f"{avg_ml_probability:.4f}")
+    col7.metric("Behavior score moyen", f"{avg_behavior_score:.2f}")
+    col8.metric("Final score moyen", f"{avg_final_score:.2f}")
 
     st.divider()
 
@@ -91,9 +108,10 @@ def main():
     with left_col:
         st.subheader("Répartition des statuts")
 
-        status_df = load_data("""
+        status_df = load_data(f"""
             SELECT transaction_status, COUNT(*) AS count
             FROM transactions
+            WHERE transaction_status IN ({status_filter})
             GROUP BY transaction_status
             ORDER BY count DESC;
         """)
@@ -134,57 +152,122 @@ def main():
 
     st.divider()
 
-    left_col, right_col = st.columns(2)
+    st.subheader("Analyse du moteur hybride")
 
-    with left_col:
-        st.subheader("Distribution des scores de risque")
+    col_left, col_right = st.columns(2)
 
-        scores_df = load_data("""
-            SELECT risk_score
+    with col_left:
+        final_score_df = load_data(f"""
+            SELECT final_score
             FROM transactions
-            WHERE risk_score IS NOT NULL;
+            WHERE final_score IS NOT NULL
+            AND transaction_status IN ({status_filter});
         """)
 
-        if not scores_df.empty:
-            fig_scores = px.histogram(
-                scores_df,
-                x="risk_score",
+        if not final_score_df.empty:
+            fig_final_score = px.histogram(
+                final_score_df,
+                x="final_score",
                 nbins=20,
-                title="Distribution des risk_score"
+                title="Distribution du final_score"
             )
-            st.plotly_chart(fig_scores, use_container_width=True)
+            st.plotly_chart(fig_final_score, use_container_width=True)
         else:
-            st.info("Aucun score disponible.")
+            st.info("Aucun final_score disponible.")
 
-    with right_col:
-        st.subheader("Fraudes par minute")
-
-        timeline_df = load_data("""
-            SELECT 
-                DATE_TRUNC('minute', processed_at) AS minute,
-                COUNT(*) AS fraud_count
+    with col_right:
+        ml_probability_df = load_data(f"""
+            SELECT ml_probability
             FROM transactions
-            WHERE transaction_status = 'FRAUD'
-            GROUP BY minute
-            ORDER BY minute ASC;
+            WHERE ml_probability IS NOT NULL
+            AND transaction_status IN ({status_filter});
         """)
 
-        if not timeline_df.empty:
-            fig_timeline = px.line(
-                timeline_df,
-                x="minute",
-                y="fraud_count",
-                title="Évolution des fraudes dans le temps"
+        if not ml_probability_df.empty:
+            fig_ml = px.histogram(
+                ml_probability_df,
+                x="ml_probability",
+                nbins=20,
+                title="Distribution de ml_probability"
             )
-            st.plotly_chart(fig_timeline, use_container_width=True)
+            st.plotly_chart(fig_ml, use_container_width=True)
         else:
-            st.info("Aucune fraude détectée pour le moment.")
+            st.info("Aucune probabilité ML disponible.")
+
+    col_left, col_right = st.columns(2)
+
+    with col_left:
+        behavior_df = load_data(f"""
+            SELECT behavior_score, COUNT(*) AS count
+            FROM transactions
+            WHERE behavior_score IS NOT NULL
+            AND transaction_status IN ({status_filter})
+            GROUP BY behavior_score
+            ORDER BY behavior_score ASC;
+        """)
+
+        if not behavior_df.empty:
+            fig_behavior = px.bar(
+                behavior_df,
+                x="behavior_score",
+                y="count",
+                title="Distribution du behavior_score"
+            )
+            st.plotly_chart(fig_behavior, use_container_width=True)
+        else:
+            st.info("Aucun behavior_score disponible.")
+
+    with col_right:
+        detection_method_df = load_data(f"""
+            SELECT detection_method, COUNT(*) AS count
+            FROM transactions
+            WHERE detection_method IS NOT NULL
+            AND transaction_status IN ({status_filter})
+            GROUP BY detection_method
+            ORDER BY count DESC;
+        """)
+
+        if not detection_method_df.empty:
+            fig_method = px.bar(
+                detection_method_df,
+                x="detection_method",
+                y="count",
+                title="Méthode de détection utilisée"
+            )
+            st.plotly_chart(fig_method, use_container_width=True)
+        else:
+            st.info("Aucune méthode de détection disponible.")
 
     st.divider()
 
-    st.subheader("Dernières transactions")
+    st.subheader("Fraudes par minute")
 
-    latest_transactions = load_data("""
+    timeline_df = load_data("""
+        SELECT 
+            DATE_TRUNC('minute', processed_at) AS minute,
+            COUNT(*) AS fraud_count
+        FROM transactions
+        WHERE transaction_status = 'FRAUD'
+        GROUP BY minute
+        ORDER BY minute ASC;
+    """)
+
+    if not timeline_df.empty:
+        fig_timeline = px.line(
+            timeline_df,
+            x="minute",
+            y="fraud_count",
+            title="Évolution des fraudes dans le temps"
+        )
+        st.plotly_chart(fig_timeline, use_container_width=True)
+    else:
+        st.info("Aucune fraude détectée pour le moment.")
+
+    st.divider()
+
+    st.subheader("Dernières transactions traitées")
+
+    latest_transactions = load_data(f"""
         SELECT 
             transaction_id,
             user_id,
@@ -195,19 +278,24 @@ def main():
             merchant_category,
             payment_method,
             risk_score,
+            ml_probability,
+            behavior_score,
+            final_score,
             transaction_status,
+            detection_method,
             transaction_timestamp,
             processed_at
         FROM transactions
+        WHERE transaction_status IN ({status_filter})
         ORDER BY processed_at DESC
-        LIMIT 20;
+        LIMIT 30;
     """)
 
     st.dataframe(latest_transactions, use_container_width=True)
 
     st.divider()
 
-    st.subheader("Dernières alertes de fraude")
+    st.subheader("Dernières alertes")
 
     latest_alerts = load_data("""
         SELECT 
@@ -221,7 +309,7 @@ def main():
             created_at
         FROM fraud_alerts
         ORDER BY created_at DESC
-        LIMIT 20;
+        LIMIT 30;
     """)
 
     st.dataframe(latest_alerts, use_container_width=True)

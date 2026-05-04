@@ -9,3 +9,5 @@ fraud_streaming
 *.csv
 
 logs
+
+fraud_rf_pipeline

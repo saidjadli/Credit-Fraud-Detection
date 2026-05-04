@@ -1,4 +1,6 @@
 from pyspark.sql import SparkSession
+from pyspark.ml import PipelineModel
+from pyspark.ml.functions import vector_to_array
 from pyspark.sql.functions import (
     col,
     from_json,
@@ -8,6 +10,7 @@ from pyspark.sql.functions import (
     to_timestamp,
     current_timestamp,
     concat,
+    round as spark_round,
 )
 from pyspark.sql.types import (
     StructType,
@@ -16,6 +19,8 @@ from pyspark.sql.types import (
     DoubleType,
 )
 
+
+ML_MODEL_PATH = "/opt/spark/ml/models/fraud_rf_pipeline"
 
 KAFKA_BOOTSTRAP_SERVERS = "fraud-kafka:29092"
 KAFKA_TOPIC = "transactions_raw"
@@ -26,11 +31,13 @@ POSTGRES_PASSWORD = "fraud_password"
 
 CHECKPOINT_LOCATION = "/opt/spark/fraud_app/checkpoints/fraud_streaming"
 
+ML_FEATURE_COLS = ["Time"] + [f"V{i}" for i in range(1, 29)] + ["Amount"]
+
 
 def create_spark_session():
     spark = (
         SparkSession.builder
-        .appName("Real-Time Fraud Detection Streaming Job")
+        .appName("Real-Time Hybrid Fraud Detection Streaming Job")
         .master("spark://fraud-spark-master:7077")
         .config("spark.sql.shuffle.partitions", "2")
         .getOrCreate()
@@ -65,6 +72,11 @@ def write_to_postgres(batch_df, batch_id):
         col("event_time").alias("transaction_timestamp"),
         "transaction_status",
         "risk_score",
+        "ml_probability",
+        "behavior_score",
+        "final_score",
+        "detection_method",
+        col("actual_label").cast("integer").alias("actual_label"),
     )
 
     risk_scores_df = batch_df.select(
@@ -75,7 +87,7 @@ def write_to_postgres(batch_df, batch_id):
         "time_score",
         "device_score",
         "frequency_score",
-        col("risk_score").alias("final_score"),
+        col("final_score").alias("final_score"),
         col("transaction_status").alias("decision"),
     )
 
@@ -86,14 +98,16 @@ def write_to_postgres(batch_df, batch_id):
             "transaction_id",
             "user_id",
             "risk_score",
-            lit("REAL_TIME_FRAUD_DETECTION").alias("alert_type"),
+            lit("HYBRID_FRAUD_DETECTION").alias("alert_type"),
             concat(
                 lit("Transaction "),
                 col("transaction_id"),
                 lit(" detected as "),
                 col("transaction_status"),
-                lit(" with risk score "),
-                col("risk_score").cast("string"),
+                lit(" | final_score="),
+                col("final_score").cast("string"),
+                lit(" | ml_probability="),
+                col("ml_probability").cast("string"),
             ).alias("message"),
             lit("OPEN").alias("status"),
         )
@@ -126,6 +140,10 @@ def write_to_postgres(batch_df, batch_id):
 def main():
     spark = create_spark_session()
 
+    print("Loading ML model from:", ML_MODEL_PATH)
+    ml_model = PipelineModel.load(ML_MODEL_PATH)
+    print("ML model loaded successfully.")
+
     transaction_schema = StructType([
         StructField("transaction_id", StringType(), True),
         StructField("user_id", StringType(), True),
@@ -138,7 +156,16 @@ def main():
         StructField("device_id", StringType(), True),
         StructField("ip_address", StringType(), True),
         StructField("timestamp", StringType(), True),
+
+        StructField("user_avg_amount", DoubleType(), True),
+        StructField("amount_vs_avg_user", DoubleType(), True),
+        StructField("actual_label", DoubleType(), True),
+
+        StructField("Time", DoubleType(), True),
     ])
+
+    for i in range(1, 29):
+        transaction_schema.add(StructField(f"V{i}", DoubleType(), True))
 
     kafka_df = (
         spark.readStream
@@ -159,13 +186,26 @@ def main():
     cleaned_df = (
         parsed_df
         .withColumn("event_time", to_timestamp(col("timestamp"), "yyyy-MM-dd HH:mm:ss"))
+        .withColumn("Amount", col("amount"))
+        .withColumn(
+            "user_avg_amount",
+            when(col("user_avg_amount").isNull(), lit(200.0)).otherwise(col("user_avg_amount"))
+        )
+        .withColumn(
+            "amount_vs_avg_user",
+            when(
+                col("amount_vs_avg_user").isNull(),
+                col("amount") / lit(200.0)
+            ).otherwise(col("amount_vs_avg_user"))
+        )
         .filter(col("transaction_id").isNotNull())
         .filter(col("user_id").isNotNull())
         .filter(col("amount").isNotNull())
         .filter(col("event_time").isNotNull())
+        .fillna(0.0, subset=ML_FEATURE_COLS)
     )
 
-    scored_df = (
+    rule_scored_df = (
         cleaned_df
         .withColumn(
             "amount_score",
@@ -200,7 +240,7 @@ def main():
             lit(0)
         )
         .withColumn(
-            "risk_score",
+            "rule_score",
             col("amount_score")
             + col("country_score")
             + col("merchant_score")
@@ -209,11 +249,52 @@ def main():
             + col("frequency_score")
         )
         .withColumn(
+            "behavior_score",
+            when(col("amount_vs_avg_user") >= 10, 30)
+            .when(col("amount_vs_avg_user") >= 5, 20)
+            .when(col("amount_vs_avg_user") >= 3, 10)
+            .otherwise(0)
+        )
+    )
+
+    ml_df = ml_model.transform(rule_scored_df)
+
+    scored_df = (
+        ml_df
+        .withColumn(
+            "ml_probability",
+            vector_to_array(col("probability")).getItem(1)
+        )
+        .withColumn(
+            "ml_score",
+            col("ml_probability") * 100
+        )
+        .withColumn(
+            "final_score",
+            spark_round(
+                (col("rule_score") * 0.35)
+                + (col("ml_score") * 0.45)
+                + (col("behavior_score") * 0.20)
+            ).cast("integer")
+        )
+        .withColumn(
             "transaction_status",
-            when(col("risk_score") >= 70, "FRAUD")
-            .when(col("risk_score") >= 40, "SUSPICIOUS")
+            when(
+                (col("final_score") >= 60) |
+                ((col("rule_score") >= 50) & (col("ml_probability") >= 0.10)),
+                "FRAUD"
+            )
+            .when(
+                (col("final_score") >= 35) |
+                (col("ml_probability") >= 0.08) |
+                (col("rule_score") >= 40),
+                "SUSPICIOUS"
+            )
             .otherwise("NORMAL")
         )
+
+        .withColumn("risk_score", col("final_score"))
+        .withColumn("detection_method", lit("HYBRID_RULES_ML_BEHAVIOR"))
         .withColumn("processed_at", current_timestamp())
     )
 
@@ -225,7 +306,7 @@ def main():
         .start()
     )
 
-    print("Spark Streaming job started successfully.")
+    print("Spark Streaming hybrid fraud detection job started successfully.")
     print("Reading from Kafka topic:", KAFKA_TOPIC)
     print("Writing results to PostgreSQL.")
 
