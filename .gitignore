@@ -1,5 +1,4 @@
 .venv
-.env 
 
 docs0
 
@@ -11,3 +10,5 @@ fraud_streaming
 logs
 
 fraud_rf_pipeline
+
+.env
