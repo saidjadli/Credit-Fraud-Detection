@@ -21,6 +21,11 @@ La plateforme couvre le cycle complet :
 - visualisation temps reel avec Streamlit ;
 - reporting, qualite de donnees et evaluation via Airflow.
 
+Schema visuel :
+
+![Architecture](docs\architecture.png)
+
+
 ## Architecture
 
 Le flux global est le suivant :
