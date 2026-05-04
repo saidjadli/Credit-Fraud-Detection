@@ -21,9 +21,6 @@ La plateforme couvre le cycle complet :
 - visualisation temps reel avec Streamlit ;
 - reporting, qualite de donnees et evaluation via Airflow.
 
-Schema visuel :
-
-![Architecture](docs\architecture.png)
 
 
 ## Architecture
@@ -57,7 +54,7 @@ PostgreSQL
 
 Schema visuel :
 
-![Architecture](docs\architecture.png)
+![Architecture](docs\Architecture.png)
 
 Services principaux exposes en local :
 
